@@ -2,11 +2,9 @@ ARG CI_REGISTRY_IMAGE
 ARG TAG
 ARG DOCKERFS_TYPE
 ARG DOCKERFS_VERSION
-ARG JUPYTERLAB_DESKTOP_VERSION
-FROM ${CI_REGISTRY_IMAGE}/<base-image:version>${TAG}
-LABEL maintainer="<maintainer@example.com>"
+FROM ${CI_REGISTRY_IMAGE}/${DOCKERFS_TYPE}:${DOCKERFS_VERSION}${TAG}
+LABEL maintainer="florian.sipp@chuv.ch"
 
-ARG DEBIAN_FRONTEND=noninteractive
 ARG CARD
 ARG CI_REGISTRY
 ARG APP_NAME
@@ -17,20 +15,43 @@ LABEL app_tag=$TAG
 
 WORKDIR /apps/${APP_NAME}
 
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install --no-install-recommends -y \ 
-    curl -sS <app> && \
-    apt-get remove -y --purge curl && \
-    apt-get autoremove -y --purge && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+ARG DEBIAN_FRONTEND=noninteractive
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/var/cache/curl,sharing=locked \
+    apt-get update -q && \
+    apt-get install --no-install-recommends -qy \
+        unzip \
+        ca-certificates \
+        curl \
+        libpng-dev \
+        libtiff-dev \
+        libjpeg-dev \
+        libfftw3-dev \
+        libgsl-dev \
+        libdcmtk-dev \
+        libexpat1-dev \
+        libx11-dev \
+        libxt-dev \
+        libglu1-mesa-dev \
+        libxi-dev \
+        libxmu-dev \
+        libxmu-headers \
+        libtbb-dev \
+        libeigen3-dev && \
+    curl -sSL -C - -O "https://github.com/ANTsX/ANTs/releases/download/v${APP_VERSION}/ants-${APP_VERSION}-ubuntu-22.04-X64-gcc.zip" && \
+    unzip -q ants-${APP_VERSION}-ubuntu-22.04-X64-gcc.zip && \
+    rm ants-${APP_VERSION}-ubuntu-22.04-X64-gcc.zip && \
+    apt-get remove -y --purge \
+        curl unzip && \
+    apt-get autoremove -y --purge
 
-ENV APP_SPECIAL="<option>"
-ENV APP_CMD="</path/to/app/executable>"
-ENV PROCESS_NAME="<app_process_name>"
-ENV APP_DATA_DIR_ARRAY="<app_config_dir .app_config_dir>"
-ENV DATA_DIR_ARRAY="<app_data_dir1 app_data_dir2>"
+ENV APP_CMD_PREFIX="export PATH=/apps/${APP_NAME}/ants-${APP_VERSION}/bin:${PATH}"
+ENV APP_SPECIAL="no"
+ENV APP_CMD="/usr/bin/wezterm"
+ENV PROCESS_NAME="/usr/bin/wezterm"
+ENV APP_DATA_DIR_ARRAY=""
+ENV DATA_DIR_ARRAY=""
 
 HEALTHCHECK --interval=10s --timeout=10s --retries=5 --start-period=30s \
   CMD sh -c "/apps/${APP_NAME}/scripts/process-healthcheck.sh \
